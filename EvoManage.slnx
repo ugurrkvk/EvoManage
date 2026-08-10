@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="EvoManage.API/EvoManage.API.csproj" />
+    <Project Path="EvoManage.Application/EvoManage.Application.csproj" />
+    <Project Path="EvoManage.Domain/EvoManage.Domain.csproj" />
+    <Project Path="EvoManage.Infrastructure/EvoManage.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="EvoManage.IntegrationTests/EvoManage.IntegrationTests.csproj" />
+    <Project Path="EvoManage.UnitTests/EvoManage.UnitTests.csproj" />
+  </Folder>
+</Solution>
