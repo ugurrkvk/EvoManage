@@ -175,4 +175,68 @@ public sealed class ProductTests
         // Assert
         Assert.Equal(validCode, product.Code);
     }
+
+    [Fact]
+    public void Update_WithValidValues_ShouldUpdateProduct()
+    {
+        // Arrange
+        var product = Product.Create(
+            "PRD-001",
+            "Old Product",
+            ProductTrackingType.None);
+
+        // Act
+        product.Update(
+            "PRD-002",
+            "Updated Product",
+            ProductTrackingType.Lot);
+
+        // Assert
+        Assert.Equal("PRD-002", product.Code);
+        Assert.Equal("Updated Product", product.Name);
+        Assert.Equal(ProductTrackingType.Lot, product.TrackingType);
+        Assert.True(product.IsActive);
+    }
+
+    [Fact]
+    public void Update_WithLeadingAndTrailingSpaces_ShouldTrimValues()
+    {
+        // Arrange
+        var product = Product.Create(
+            "PRD-001",
+            "Old Product",
+            ProductTrackingType.None);
+
+        // Act
+        product.Update(
+            "  PRD-002  ",
+            "  Updated Product  ",
+            ProductTrackingType.Lot);
+
+        // Assert
+        Assert.Equal("PRD-002", product.Code);
+        Assert.Equal("Updated Product", product.Name);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("     ")]
+    public void Update_WithInvalidCode_ShouldThrowDomainException(string code)
+    {
+        // Arrange
+        var product = Product.Create(
+            "PRD-001",
+            "Test Product",
+            ProductTrackingType.None);
+
+        // Act
+        var act = () => product.Update(
+            code,
+            "Updated Product",
+            ProductTrackingType.Lot);
+
+        // Assert
+        Assert.Throws<DomainException>(act);
+    }
 }

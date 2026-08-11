@@ -17,6 +17,10 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
                 StatusCodes.Status409Conflict,
                 "Conflict"),
 
+            NotFoundException => (
+                StatusCodes.Status404NotFound,
+                "Not found"),
+
             DomainException => (
                 StatusCodes.Status422UnprocessableEntity,
                 "Domain validation error"),
