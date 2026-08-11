@@ -1,7 +1,10 @@
-﻿using EvoManage.Infrastructure.Persistence;
+﻿using EvoManage.Application.Abstractions.Persistence;
+using EvoManage.Application.Abstractions.Persistence.Repositories;
+using EvoManage.Infrastructure.Persistence;
+using EvoManage.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EvoManage.Infrastructure;
 
@@ -15,6 +18,10 @@ public static class DependencyInjection
 
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(connectionString));
+
+        services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
+
         return services;
     }
 }

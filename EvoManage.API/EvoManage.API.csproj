@@ -22,8 +22,4 @@
     <ProjectReference Include="..\EvoManage.Infrastructure\EvoManage.Infrastructure.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Controllers\" />
-  </ItemGroup>
-
 </Project>
