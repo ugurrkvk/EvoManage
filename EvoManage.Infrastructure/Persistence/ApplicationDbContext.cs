@@ -1,4 +1,5 @@
-﻿using EvoManage.Domain.Products;
+﻿using EvoManage.Domain.Locations;
+using EvoManage.Domain.Products;
 using EvoManage.Domain.Warehouses;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +9,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 {
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<Location> Locations => Set<Location>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

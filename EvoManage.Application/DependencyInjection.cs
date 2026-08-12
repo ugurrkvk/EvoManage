@@ -1,4 +1,6 @@
-﻿using EvoManage.Application.Products.Commands;
+﻿using EvoManage.Application.Locations.Commands;
+using EvoManage.Application.Locations.Queries;
+using EvoManage.Application.Products.Commands;
 using EvoManage.Application.Products.Queries;
 using EvoManage.Application.Warehouses.Commands;
 using EvoManage.Application.Warehouses.Queries;
@@ -16,6 +18,8 @@ public static class DependencyInjection
         services.AddScoped<ProductQueryService>();
         services.AddScoped<WarehouseCommandService>();
         services.AddScoped<WarehouseQueryService>();
+        services.AddScoped<LocationCommandService>();
+        services.AddScoped<LocationQueryService>();
         return services;
     }
 }
