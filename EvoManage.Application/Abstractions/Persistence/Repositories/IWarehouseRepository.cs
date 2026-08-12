@@ -1,12 +1,14 @@
-﻿using EvoManage.Domain.Products;
+﻿using EvoManage.Domain.Warehouses;
 
 namespace EvoManage.Application.Abstractions.Persistence.Repositories;
 
-public interface IProductRepository : IGenericRepository<Product>
+public interface IWarehouseRepository : IGenericRepository<Warehouse>
 {
-    Task<bool> ExistsByCodeAsync(string code, CancellationToken cancellationToken = default);
+    Task<bool> ExistsByCodeAsync(
+        string code,
+        CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyCollection<Product>> GetPagedAsync(
+    Task<IReadOnlyCollection<Warehouse>> GetPagedAsync(
         int pageNumber,
         int pageSize,
         CancellationToken cancellationToken = default);
