@@ -1,7 +1,8 @@
 using EvoManage.API.ExceptionHandling;
+using EvoManage.API.Filters;
+using EvoManage.API.OpenApi;
 using EvoManage.Application;
 using EvoManage.Infrastructure;
-using EvoManage.API.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,7 +12,10 @@ builder.Services.AddControllers(options =>
 });
 
 builder.Services.AddOpenApi();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.OperationFilter<DefaultResponseOperationFilter>();
+});
 
 builder.Services.AddApplication().AddInfrastructure(builder.Configuration).AddExceptionHandler<GlobalExceptionHandler>().AddScoped<ValidationFilter>();
 
