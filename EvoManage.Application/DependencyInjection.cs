@@ -1,4 +1,7 @@
-﻿using EvoManage.Application.Locations.Commands;
+﻿using EvoManage.Application.Inventory.Stock.Queries;
+using EvoManage.Application.Inventory.StockMovements.Commands;
+using EvoManage.Application.Inventory.StockMovements.Queries;
+using EvoManage.Application.Locations.Commands;
 using EvoManage.Application.Locations.Queries;
 using EvoManage.Application.Products.Commands;
 using EvoManage.Application.Products.Queries;
@@ -20,6 +23,9 @@ public static class DependencyInjection
         services.AddScoped<WarehouseQueryService>();
         services.AddScoped<LocationCommandService>();
         services.AddScoped<LocationQueryService>();
+        services.AddScoped<StockMovementCommandService>();
+        services.AddScoped<StockMovementQueryService>();
+        services.AddScoped<StockQueryService>();
         return services;
     }
 }
