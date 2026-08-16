@@ -5,9 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EvoManage.Infrastructure.Persistence.Repositories;
 
-public sealed class StockReadRepository(
-    ApplicationDbContext context)
-    : IStockReadRepository
+public sealed class StockReadRepository(ApplicationDbContext context) : IStockReadRepository
 {
     public async Task<IReadOnlyCollection<StockBalanceModel>> GetPagedAsync(
         int? productId,
@@ -70,6 +68,32 @@ public sealed class StockReadRepository(
                 stock.LocationId == locationId)
             .Select(stock => stock.Quantity)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<StockBalanceModel>> GetAvailableStocksAsync(
+        int productId,
+        int warehouseId,
+        CancellationToken cancellationToken = default)
+    {
+        return await context.StockBalances
+            .AsNoTracking()
+            .Where(stock =>
+                stock.ProductId == productId &&
+                stock.WarehouseId == warehouseId &&
+                stock.Quantity > 0)
+            .OrderByDescending(stock => stock.Quantity)
+            .ThenBy(stock => stock.LocationId)
+            .Select(stock => new StockBalanceModel(
+                stock.ProductId,
+                stock.ProductCode,
+                stock.ProductName,
+                stock.WarehouseId,
+                stock.WarehouseCode,
+                stock.WarehouseName,
+                stock.LocationId,
+                stock.LocationCode,
+                stock.Quantity))
+            .ToListAsync(cancellationToken);
     }
 
     private IQueryable<StockBalance> ApplyFilters(

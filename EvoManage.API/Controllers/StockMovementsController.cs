@@ -36,13 +36,8 @@ public sealed class StockMovementsController(
         CreateStockIssueRequest request,
         CancellationToken cancellationToken)
     {
-        var response = await stockMovementCommandService.CreateIssueAsync(
-            request,
-            cancellationToken);
-
-        return Created(
-            $"/api/stock-movements/{response.Id}",
-            response);
+        var response = await stockMovementCommandService.CreateIssueAsync(request, cancellationToken);
+        return Created("/api/stock-movements", response);
     }
 
     [HttpPost("transfers")]

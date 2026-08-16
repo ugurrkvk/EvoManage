@@ -1,6 +1,7 @@
 ﻿using EvoManage.Application.Abstractions.Persistence;
 using EvoManage.Application.Abstractions.Persistence.Repositories;
 using EvoManage.Application.Common.Exceptions;
+using EvoManage.Application.Inventory.Common.StockAllocation;
 using EvoManage.Application.Inventory.StockMovements.Commands;
 using EvoManage.Application.Inventory.StockMovements.Commands.Transfer;
 using EvoManage.Domain.Inventory.StockMovements;
@@ -18,6 +19,7 @@ public sealed class CreateStockTransferServiceTests
     private readonly Mock<IWarehouseRepository> _warehouseRepository = new();
     private readonly Mock<ILocationRepository> _locationRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly StockAllocationStrategyResolver _stockAllocationStrategyResolver = new([]);
 
     private StockMovementCommandService CreateService()
         => new(
@@ -25,7 +27,8 @@ public sealed class CreateStockTransferServiceTests
             _productRepository.Object,
             _warehouseRepository.Object,
             _locationRepository.Object,
-            _unitOfWork.Object);
+            _unitOfWork.Object,
+            _stockAllocationStrategyResolver);
 
     [Fact]
     public async Task CreateTransferAsync_WithMissingProduct_ShouldThrowNotFoundException()

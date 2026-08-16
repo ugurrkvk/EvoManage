@@ -1,6 +1,7 @@
 ﻿using EvoManage.Application.Abstractions.Persistence;
 using EvoManage.Application.Abstractions.Persistence.Repositories;
 using EvoManage.Application.Common.Exceptions;
+using EvoManage.Application.Inventory.Common.StockAllocation;
 using EvoManage.Application.Inventory.StockMovements.Commands;
 using EvoManage.Application.Inventory.StockMovements.Commands.Issue;
 using EvoManage.Application.Inventory.StockMovements.Commands.Receipt;
@@ -20,6 +21,21 @@ public sealed class StockMovementCommandServiceTests
     private readonly Mock<IWarehouseRepository> _warehouseRepository = new();
     private readonly Mock<ILocationRepository> _locationRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IStockAllocationStrategy> _stockAllocationStrategy = new();
+
+    private readonly StockAllocationStrategyResolver _stockAllocationStrategyResolver;
+
+    public StockMovementCommandServiceTests()
+    {
+        _stockAllocationStrategy
+            .SetupGet(strategy => strategy.Type)
+            .Returns(StockAllocationStrategyType.ManualLocation);
+
+        _stockAllocationStrategyResolver = new StockAllocationStrategyResolver(
+        [
+            _stockAllocationStrategy.Object
+        ]);
+    }
 
     private StockMovementCommandService CreateService()
         => new(
@@ -27,7 +43,8 @@ public sealed class StockMovementCommandServiceTests
             _productRepository.Object,
             _warehouseRepository.Object,
             _locationRepository.Object,
-            _unitOfWork.Object);
+            _unitOfWork.Object,
+            _stockAllocationStrategyResolver);
 
     [Fact]
     public async Task CreateReceiptAsync_WithValidRequest_ShouldAddReceiptAndSaveChanges()
@@ -340,18 +357,25 @@ public sealed class StockMovementCommandServiceTests
     }
 
     [Fact]
-    public async Task CreateIssueAsync_WithSufficientStock_ShouldAddIssueAndSaveChanges()
+    public async Task CreateIssueAsync_WithValidAllocation_ShouldAddIssueAndSaveChanges()
     {
         // Arrange
-        SetupValidMasterData();
+        SetupValidProductAndWarehouse();
 
-        _stockMovementRepository
-            .Setup(repository => repository.GetStockAsync(
+        _stockAllocationStrategy
+            .Setup(strategy => strategy.AllocateAsync(
                 1,
                 1,
                 10,
+                5m,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(25.5m);
+            .ReturnsAsync(
+            [
+                new StockAllocation(
+                    WarehouseId: 1,
+                    LocationId: 10,
+                    Quantity: 5m)
+            ]);
 
         var request = new CreateStockIssueRequest(
             ProductId: 1,
@@ -385,24 +409,31 @@ public sealed class StockMovementCommandServiceTests
     }
 
     [Fact]
-    public async Task CreateIssueAsync_WithExactStock_ShouldAddIssueAndSaveChanges()
+    public async Task CreateIssueAsync_WithExactAllocation_ShouldAddIssueAndSaveChanges()
     {
         // Arrange
-        SetupValidMasterData();
+        SetupValidProductAndWarehouse();
 
-        _stockMovementRepository
-            .Setup(repository => repository.GetStockAsync(
+        _stockAllocationStrategy
+            .Setup(strategy => strategy.AllocateAsync(
                 1,
                 1,
                 10,
+                25.5m,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(25.5m);
+            .ReturnsAsync(
+            [
+                new StockAllocation(
+                    WarehouseId: 1,
+                    LocationId: 10,
+                    Quantity: 25.5m)
+            ]);
 
         var request = new CreateStockIssueRequest(
-            1,
-            1,
-            10,
-            25.5m);
+            ProductId: 1,
+            WarehouseId: 1,
+            LocationId: 10,
+            Quantity: 25.5m);
 
         var service = CreateService();
 
@@ -413,6 +444,9 @@ public sealed class StockMovementCommandServiceTests
         _stockMovementRepository.Verify(
             repository => repository.AddAsync(
                 It.Is<StockMovement>(movement =>
+                    movement.ProductId == 1 &&
+                    movement.WarehouseId == 1 &&
+                    movement.LocationId == 10 &&
                     movement.Quantity == 25.5m &&
                     movement.MovementType == StockMovementType.Issue),
                 It.IsAny<CancellationToken>()),
@@ -425,24 +459,27 @@ public sealed class StockMovementCommandServiceTests
     }
 
     [Fact]
-    public async Task CreateIssueAsync_WithInsufficientStock_ShouldThrowConflictException()
+    public async Task CreateIssueAsync_WithStrategyConflict_ShouldNotSaveMovement()
     {
         // Arrange
-        SetupValidMasterData();
+        SetupValidProductAndWarehouse();
 
-        _stockMovementRepository
-            .Setup(repository => repository.GetStockAsync(
+        _stockAllocationStrategy
+            .Setup(strategy => strategy.AllocateAsync(
                 1,
                 1,
                 10,
+                30m,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(25.5m);
+            .ThrowsAsync(
+                new ConflictException(
+                    "Insufficient stock."));
 
         var request = new CreateStockIssueRequest(
-            1,
-            1,
-            10,
-            30m);
+            ProductId: 1,
+            WarehouseId: 1,
+            LocationId: 10,
+            Quantity: 30m);
 
         var service = CreateService();
 
@@ -456,24 +493,27 @@ public sealed class StockMovementCommandServiceTests
     }
 
     [Fact]
-    public async Task CreateIssueAsync_WithZeroStock_ShouldThrowConflictException()
+    public async Task CreateIssueAsync_WithZeroStockStrategyConflict_ShouldNotSaveMovement()
     {
         // Arrange
-        SetupValidMasterData();
+        SetupValidProductAndWarehouse();
 
-        _stockMovementRepository
-            .Setup(repository => repository.GetStockAsync(
+        _stockAllocationStrategy
+            .Setup(strategy => strategy.AllocateAsync(
                 1,
                 1,
                 10,
+                5m,
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(0m);
+            .ThrowsAsync(
+                new ConflictException(
+                    "Insufficient stock."));
 
         var request = new CreateStockIssueRequest(
-            1,
-            1,
-            10,
-            5m);
+            ProductId: 1,
+            WarehouseId: 1,
+            LocationId: 10,
+            Quantity: 5m);
 
         var service = CreateService();
 
@@ -489,6 +529,7 @@ public sealed class StockMovementCommandServiceTests
     [Fact]
     public async Task CreateIssueAsync_WithMissingProduct_ShouldThrowNotFoundException()
     {
+        // Arrange
         _productRepository
             .Setup(repository => repository.GetByIdAsync(
                 999,
@@ -496,23 +537,35 @@ public sealed class StockMovementCommandServiceTests
             .ReturnsAsync((Product?)null);
 
         var request = new CreateStockIssueRequest(
-            999,
-            1,
-            10,
-            5m);
+            ProductId: 999,
+            WarehouseId: 1,
+            LocationId: 10,
+            Quantity: 5m);
 
         var service = CreateService();
 
+        // Act
         var act = () => service.CreateIssueAsync(request);
 
+        // Assert
         await Assert.ThrowsAsync<NotFoundException>(act);
 
         VerifyMovementWasNotSaved();
+
+        _stockAllocationStrategy.Verify(
+            strategy => strategy.AllocateAsync(
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<int?>(),
+                It.IsAny<decimal>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
     public async Task CreateIssueAsync_WithMissingWarehouse_ShouldThrowNotFoundException()
     {
+        // Arrange
         var product = Product.Create(
             "PRD-001",
             "Product 1",
@@ -531,51 +584,102 @@ public sealed class StockMovementCommandServiceTests
             .ReturnsAsync((Warehouse?)null);
 
         var request = new CreateStockIssueRequest(
-            1,
-            999,
-            10,
-            5m);
+            ProductId: 1,
+            WarehouseId: 999,
+            LocationId: 10,
+            Quantity: 5m);
 
         var service = CreateService();
 
+        // Act
         var act = () => service.CreateIssueAsync(request);
 
+        // Assert
         await Assert.ThrowsAsync<NotFoundException>(act);
 
         VerifyMovementWasNotSaved();
+
+        _stockAllocationStrategy.Verify(
+            strategy => strategy.AllocateAsync(
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<int?>(),
+                It.IsAny<decimal>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
-    public async Task CreateIssueAsync_WithLocationBelongingToDifferentWarehouse_ShouldThrowConflictException()
+    public async Task CreateIssueAsync_WithMultipleAllocations_ShouldAddIssueForEachAllocationAndSaveOnce()
     {
-        var product = Product.Create(
-            "PRD-001",
-            "Product 1",
-            ProductTrackingType.None);
+        // Arrange
+        SetupValidProductAndWarehouse();
 
-        var warehouse = Warehouse.Create(
-            "WH-001",
-            "Main Warehouse");
+        _stockAllocationStrategy
+            .Setup(strategy => strategy.AllocateAsync(
+                1,
+                1,
+                null,
+                30m,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new StockAllocation(
+                    WarehouseId: 1,
+                    LocationId: 10,
+                    Quantity: 20m),
 
-        var location = Location.Create(
-            warehouseId: 2,
-            code: "A-01-01");
-
-        SetupRepositories(product, warehouse, location);
+                new StockAllocation(
+                    WarehouseId: 1,
+                    LocationId: 11,
+                    Quantity: 10m)
+            ]);
 
         var request = new CreateStockIssueRequest(
-            1,
-            1,
-            10,
-            5m);
+            ProductId: 1,
+            WarehouseId: 1,
+            LocationId: null,
+            Quantity: 30m,
+            AllocationStrategy: StockAllocationStrategyType.ManualLocation);
 
         var service = CreateService();
 
-        var act = () => service.CreateIssueAsync(request);
+        // Act
+        await service.CreateIssueAsync(request);
 
-        await Assert.ThrowsAsync<ConflictException>(act);
+        // Assert
+        _stockMovementRepository.Verify(
+            repository => repository.AddAsync(
+                It.Is<StockMovement>(movement =>
+                    movement.ProductId == 1 &&
+                    movement.WarehouseId == 1 &&
+                    movement.LocationId == 10 &&
+                    movement.Quantity == 20m &&
+                    movement.MovementType == StockMovementType.Issue),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
 
-        VerifyMovementWasNotSaved();
+        _stockMovementRepository.Verify(
+            repository => repository.AddAsync(
+                It.Is<StockMovement>(movement =>
+                    movement.ProductId == 1 &&
+                    movement.WarehouseId == 1 &&
+                    movement.LocationId == 11 &&
+                    movement.Quantity == 10m &&
+                    movement.MovementType == StockMovementType.Issue),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        _stockMovementRepository.Verify(
+            repository => repository.AddAsync(
+                It.IsAny<StockMovement>(),
+                It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+
+        _unitOfWork.Verify(
+            unitOfWork => unitOfWork.SaveChangesAsync(
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -938,27 +1042,6 @@ public sealed class StockMovementCommandServiceTests
                 20,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(targetLocation);
-    }
-
-    private void SetupValidMasterData()
-    {
-        var product = Product.Create(
-            "PRD-001",
-            "Product 1",
-            ProductTrackingType.None);
-
-        var warehouse = Warehouse.Create(
-            "WH-001",
-            "Main Warehouse");
-
-        var location = Location.Create(
-            warehouseId: 1,
-            code: "A-01-01");
-
-        SetupRepositories(
-            product,
-            warehouse,
-            location);
     }
 
     private void SetupValidProductAndWarehouse()

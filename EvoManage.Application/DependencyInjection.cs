@@ -1,4 +1,6 @@
-﻿using EvoManage.Application.Inventory.Stock.Queries;
+﻿using EvoManage.Application.Inventory.Common.StockAllocation;
+using EvoManage.Application.Inventory.Common.StockAllocation.Strategies;
+using EvoManage.Application.Inventory.Stock.Queries;
 using EvoManage.Application.Inventory.StockMovements.Commands;
 using EvoManage.Application.Inventory.StockMovements.Queries;
 using EvoManage.Application.Locations.Commands;
@@ -26,6 +28,12 @@ public static class DependencyInjection
         services.AddScoped<StockMovementCommandService>();
         services.AddScoped<StockMovementQueryService>();
         services.AddScoped<StockQueryService>();
+
+        services.AddScoped<IStockAllocationStrategy, ManualLocationAllocationStrategy>();
+        services.AddScoped<IStockAllocationStrategy, HighestStockAllocationStrategy>();
+        services.AddScoped<StockAllocationStrategyResolver>();
+
+
         return services;
     }
 }

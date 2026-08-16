@@ -25,4 +25,9 @@ public interface IStockReadRepository
         int warehouseId,
         int locationId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<StockBalanceModel>> GetAvailableStocksAsync(
+        int productId,
+        int warehouseId,
+        CancellationToken cancellationToken = default);
 }
