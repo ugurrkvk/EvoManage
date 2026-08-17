@@ -10,15 +10,15 @@ public sealed class HighestStockAllocationStrategy(IStockReadRepository stockRea
     public async Task<IReadOnlyCollection<StockAllocation>> AllocateAsync(int productId, int warehouseId, int? requestedLocationId, decimal quantity, CancellationToken cancellationToken = default)
     {
         var availableStocks = await stockReadRepository.GetAvailableStocksAsync(productId, warehouseId, cancellationToken);
-
-        var totalAvailableStock = availableStocks.Sum(stock => stock.Quantity);
+        var orderedStocks = availableStocks.OrderByDescending(stock => stock.Quantity).ThenBy(stock => stock.LocationId).ToArray();
+        var totalAvailableStock = orderedStocks.Sum(stock => stock.Quantity);
 
         if (totalAvailableStock < quantity) throw new ConflictException($"Insufficient stock. Available quantity is '{totalAvailableStock}'.");
 
         var remainingQuantity = quantity;
         var allocations = new List<StockAllocation>();
 
-        foreach (var stock in availableStocks)
+        foreach (var stock in orderedStocks)
         {
             if (remainingQuantity <= 0) break;
             var allocatedQuantity = Math.Min(stock.Quantity, remainingQuantity);

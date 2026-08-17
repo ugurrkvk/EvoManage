@@ -81,8 +81,7 @@ public sealed class StockReadRepository(ApplicationDbContext context) : IStockRe
                 stock.ProductId == productId &&
                 stock.WarehouseId == warehouseId &&
                 stock.Quantity > 0)
-            .OrderByDescending(stock => stock.Quantity)
-            .ThenBy(stock => stock.LocationId)
+            .OrderBy(stock => stock.LocationId)
             .Select(stock => new StockBalanceModel(
                 stock.ProductId,
                 stock.ProductCode,

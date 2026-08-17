@@ -31,6 +31,7 @@ public static class DependencyInjection
 
         services.AddScoped<IStockAllocationStrategy, ManualLocationAllocationStrategy>();
         services.AddScoped<IStockAllocationStrategy, HighestStockAllocationStrategy>();
+        services.AddScoped<IStockAllocationStrategy, LowestStockAllocationStrategy>();
         services.AddScoped<StockAllocationStrategyResolver>();
 
 
