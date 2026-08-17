@@ -1,5 +1,7 @@
 ﻿using EvoManage.Application.Abstractions.Persistence;
 using EvoManage.Application.Abstractions.Persistence.Repositories;
+using EvoManage.Application.Integrations.ERP.Stock;
+using EvoManage.Infrastructure.Integrations.ERP.Legacy;
 using EvoManage.Infrastructure.Persistence;
 using EvoManage.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +27,13 @@ public static class DependencyInjection
         services.AddScoped<IStockMovementRepository, StockMovementRepository>();
         services.AddScoped<IStockReadRepository, StockReadRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        var legacyErpBaseUrl = configuration["LegacyErp:BaseUrl"] ?? throw new InvalidOperationException("Legacy ERP base URL is not configured.");
+        services.AddHttpClient<ILegacyErpClient, FakeLegacyErpClient>(client =>
+        {
+            client.BaseAddress = new Uri(legacyErpBaseUrl);
+        });
+        services.AddScoped<IErpStockIntegration, LegacyErpStockAdapter>();
 
         return services;
     }

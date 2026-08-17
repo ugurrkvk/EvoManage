@@ -6,6 +6,7 @@ using EvoManage.Application.Inventory.StockMovements.Commands;
 using EvoManage.Application.Inventory.StockMovements.Commands.Issue;
 using EvoManage.Application.Inventory.StockMovements.Commands.Receipt;
 using EvoManage.Application.Inventory.StockMovements.Commands.Transfer;
+using EvoManage.Application.Inventory.StockMovements.Events;
 using EvoManage.Domain.Inventory.StockMovements;
 using EvoManage.Domain.Locations;
 using EvoManage.Domain.Products;
@@ -22,8 +23,10 @@ public sealed class StockMovementCommandServiceTests
     private readonly Mock<ILocationRepository> _locationRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IStockAllocationStrategy> _stockAllocationStrategy = new();
+    private readonly Mock<IStockMovementCreatedEventHandler> _stockMovementCreatedEventHandler = new();
 
     private readonly StockAllocationStrategyResolver _stockAllocationStrategyResolver;
+    private readonly StockMovementCreatedEventDispatcher _eventDispatcher;
 
     public StockMovementCommandServiceTests()
     {
@@ -35,6 +38,11 @@ public sealed class StockMovementCommandServiceTests
         [
             _stockAllocationStrategy.Object
         ]);
+
+        _eventDispatcher = new StockMovementCreatedEventDispatcher(
+        [
+            _stockMovementCreatedEventHandler.Object
+        ]);
     }
 
     private StockMovementCommandService CreateService()
@@ -44,7 +52,8 @@ public sealed class StockMovementCommandServiceTests
             _warehouseRepository.Object,
             _locationRepository.Object,
             _unitOfWork.Object,
-            _stockAllocationStrategyResolver);
+            _stockAllocationStrategyResolver,
+            _eventDispatcher);
 
     [Fact]
     public async Task CreateReceiptAsync_WithValidRequest_ShouldAddReceiptAndSaveChanges()
@@ -225,7 +234,10 @@ public sealed class StockMovementCommandServiceTests
             1,
             "A-01-01");
 
-        SetupRepositories(product, warehouse, location);
+        SetupRepositories(
+            product,
+            warehouse,
+            location);
 
         var request = new CreateStockReceiptRequest(
             1,
@@ -263,7 +275,10 @@ public sealed class StockMovementCommandServiceTests
             1,
             "A-01-01");
 
-        SetupRepositories(product, warehouse, location);
+        SetupRepositories(
+            product,
+            warehouse,
+            location);
 
         var request = new CreateStockReceiptRequest(
             1,
@@ -301,7 +316,10 @@ public sealed class StockMovementCommandServiceTests
 
         location.Deactivate();
 
-        SetupRepositories(product, warehouse, location);
+        SetupRepositories(
+            product,
+            warehouse,
+            location);
 
         var request = new CreateStockReceiptRequest(
             1,
@@ -337,7 +355,10 @@ public sealed class StockMovementCommandServiceTests
             warehouseId: 2,
             code: "A-01-01");
 
-        SetupRepositories(product, warehouse, location);
+        SetupRepositories(
+            product,
+            warehouse,
+            location);
 
         var request = new CreateStockReceiptRequest(
             ProductId: 1,
@@ -680,6 +701,34 @@ public sealed class StockMovementCommandServiceTests
             unitOfWork => unitOfWork.SaveChangesAsync(
                 It.IsAny<CancellationToken>()),
             Times.Once);
+
+        _stockMovementCreatedEventHandler.Verify(
+            handler => handler.HandleAsync(
+                It.Is<StockMovementCreatedEvent>(@event =>
+                    @event.ProductId == 1 &&
+                    @event.WarehouseId == 1 &&
+                    @event.LocationId == 10 &&
+                    @event.Quantity == 20m &&
+                    @event.MovementType == StockMovementType.Issue),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        _stockMovementCreatedEventHandler.Verify(
+            handler => handler.HandleAsync(
+                It.Is<StockMovementCreatedEvent>(@event =>
+                    @event.ProductId == 1 &&
+                    @event.WarehouseId == 1 &&
+                    @event.LocationId == 11 &&
+                    @event.Quantity == 10m &&
+                    @event.MovementType == StockMovementType.Issue),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        _stockMovementCreatedEventHandler.Verify(
+            handler => handler.HandleAsync(
+                It.IsAny<StockMovementCreatedEvent>(),
+                It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
     }
 
     [Fact]
@@ -744,6 +793,34 @@ public sealed class StockMovementCommandServiceTests
             unitOfWork => unitOfWork.SaveChangesAsync(
                 It.IsAny<CancellationToken>()),
             Times.Once);
+
+        _stockMovementCreatedEventHandler.Verify(
+            handler => handler.HandleAsync(
+                It.Is<StockMovementCreatedEvent>(@event =>
+                    @event.ProductId == 1 &&
+                    @event.WarehouseId == 1 &&
+                    @event.LocationId == 10 &&
+                    @event.Quantity == 10m &&
+                    @event.MovementType == StockMovementType.TransferOut),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        _stockMovementCreatedEventHandler.Verify(
+            handler => handler.HandleAsync(
+                It.Is<StockMovementCreatedEvent>(@event =>
+                    @event.ProductId == 1 &&
+                    @event.WarehouseId == 2 &&
+                    @event.LocationId == 20 &&
+                    @event.Quantity == 10m &&
+                    @event.MovementType == StockMovementType.TransferIn),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        _stockMovementCreatedEventHandler.Verify(
+            handler => handler.HandleAsync(
+                It.IsAny<StockMovementCreatedEvent>(),
+                It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
     }
 
     [Fact]

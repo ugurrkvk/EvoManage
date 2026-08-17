@@ -5,6 +5,7 @@ using EvoManage.Application.Inventory.Common.StockAllocation;
 using EvoManage.Application.Inventory.StockMovements.Commands.Issue;
 using EvoManage.Application.Inventory.StockMovements.Commands.Receipt;
 using EvoManage.Application.Inventory.StockMovements.Commands.Transfer;
+using EvoManage.Application.Inventory.StockMovements.Events;
 using EvoManage.Domain.Inventory.StockMovements;
 using EvoManage.Domain.Locations;
 using EvoManage.Domain.Products;
@@ -12,7 +13,7 @@ using EvoManage.Domain.Warehouses;
 
 namespace EvoManage.Application.Inventory.StockMovements.Commands;
 
-public sealed class StockMovementCommandService(IStockMovementRepository stockMovementRepository, IProductRepository productRepository, IWarehouseRepository warehouseRepository, ILocationRepository locationRepository, IUnitOfWork unitOfWork, StockAllocationStrategyResolver stockAllocationStrategyResolver)
+public sealed class StockMovementCommandService(IStockMovementRepository stockMovementRepository, IProductRepository productRepository, IWarehouseRepository warehouseRepository, ILocationRepository locationRepository, IUnitOfWork unitOfWork, StockAllocationStrategyResolver stockAllocationStrategyResolver, StockMovementCreatedEventDispatcher stockMovementCreatedEventDispatcher)
 {
     public async Task<CreateStockReceiptResponse> CreateReceiptAsync(CreateStockReceiptRequest request, CancellationToken cancellationToken = default)
     {
@@ -22,6 +23,14 @@ public sealed class StockMovementCommandService(IStockMovementRepository stockMo
         var movement = StockMovement.Create(request.ProductId, request.WarehouseId, request.LocationId, request.Quantity, StockMovementType.Receipt);
         await stockMovementRepository.AddAsync(movement, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        var @event = new StockMovementCreatedEvent(
+            MovementId: movement.Id,
+            ProductId: movement.ProductId,
+            WarehouseId: movement.WarehouseId,
+            LocationId: movement.LocationId,
+            Quantity: movement.Quantity,
+            MovementType: movement.MovementType);
+        await stockMovementCreatedEventDispatcher.DispatchAsync(@event, cancellationToken);
         return new CreateStockReceiptResponse(movement.Id);
     }
 
@@ -56,6 +65,21 @@ public sealed class StockMovementCommandService(IStockMovementRepository stockMo
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
+        foreach (var movement in movements)
+        {
+            var @event = new StockMovementCreatedEvent(
+                MovementId: movement.Id,
+                ProductId: movement.ProductId,
+                WarehouseId: movement.WarehouseId,
+                LocationId: movement.LocationId,
+                Quantity: movement.Quantity,
+                MovementType: movement.MovementType);
+
+            await stockMovementCreatedEventDispatcher.DispatchAsync(
+                @event,
+                cancellationToken);
+        }
+
         var responseMovements = movements
             .Select(movement => new CreateStockIssueMovementResponse(
                 movement.Id,
@@ -80,6 +104,22 @@ public sealed class StockMovementCommandService(IStockMovementRepository stockMo
         await stockMovementRepository.AddAsync(transferOut, cancellationToken);
         await stockMovementRepository.AddAsync(transferIn, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        var transferOutEvent = new StockMovementCreatedEvent(
+            MovementId: transferOut.Id,
+            ProductId: transferOut.ProductId,
+            WarehouseId: transferOut.WarehouseId,
+            LocationId: transferOut.LocationId,
+            Quantity: transferOut.Quantity,
+            MovementType: transferOut.MovementType);
+        await stockMovementCreatedEventDispatcher.DispatchAsync(transferOutEvent, cancellationToken);
+        var transferInEvent = new StockMovementCreatedEvent(
+            MovementId: transferIn.Id,
+            ProductId: transferIn.ProductId,
+            WarehouseId: transferIn.WarehouseId,
+            LocationId: transferIn.LocationId,
+            Quantity: transferIn.Quantity,
+            MovementType: transferIn.MovementType);
+        await stockMovementCreatedEventDispatcher.DispatchAsync(transferInEvent, cancellationToken);
         return new CreateStockTransferResponse(transferOut.Id, transferIn.Id);
     }
 

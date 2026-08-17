@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\EvoManage.Application\EvoManage.Application.csproj" />
     <ProjectReference Include="..\EvoManage.Domain\EvoManage.Domain.csproj" />
+    <ProjectReference Include="..\EvoManage.Infrastructure\EvoManage.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
