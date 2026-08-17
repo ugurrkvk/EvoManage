@@ -1,31 +1,17 @@
 ﻿using EvoManage.Application.Abstractions.Persistence.Repositories;
-using EvoManage.Application.Common.Exceptions;
+using EvoManage.Application.Inventory.Stocks.Models;
 
 namespace EvoManage.Application.Inventory.Common.StockAllocation.Strategies;
 
-public sealed class HighestStockAllocationStrategy(IStockReadRepository stockReadRepository) : IStockAllocationStrategy
+public sealed class HighestStockAllocationStrategy(IStockReadRepository stockReadRepository) : OrderedStockAllocationStrategy(stockReadRepository)
 {
-    public StockAllocationStrategyType Type => StockAllocationStrategyType.HighestStock;
+    public override StockAllocationStrategyType Type => StockAllocationStrategyType.HighestStock;
 
-    public async Task<IReadOnlyCollection<StockAllocation>> AllocateAsync(int productId, int warehouseId, int? requestedLocationId, decimal quantity, CancellationToken cancellationToken = default)
+    protected override IReadOnlyCollection<StockBalanceModel> OrderStocks(IReadOnlyCollection<StockBalanceModel> stocks)
     {
-        var availableStocks = await stockReadRepository.GetAvailableStocksAsync(productId, warehouseId, cancellationToken);
-        var orderedStocks = availableStocks.OrderByDescending(stock => stock.Quantity).ThenBy(stock => stock.LocationId).ToArray();
-        var totalAvailableStock = orderedStocks.Sum(stock => stock.Quantity);
-
-        if (totalAvailableStock < quantity) throw new ConflictException($"Insufficient stock. Available quantity is '{totalAvailableStock}'.");
-
-        var remainingQuantity = quantity;
-        var allocations = new List<StockAllocation>();
-
-        foreach (var stock in orderedStocks)
-        {
-            if (remainingQuantity <= 0) break;
-            var allocatedQuantity = Math.Min(stock.Quantity, remainingQuantity);
-            allocations.Add(new StockAllocation(WarehouseId: stock.WarehouseId, LocationId: stock.LocationId, Quantity: allocatedQuantity));
-            remainingQuantity -= allocatedQuantity;
-        }
-
-        return allocations;
+        return stocks
+            .OrderByDescending(stock => stock.Quantity)
+            .ThenBy(stock => stock.LocationId)
+            .ToArray();
     }
 }
