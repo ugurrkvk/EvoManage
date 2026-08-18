@@ -5,6 +5,10 @@ using EvoManage.Application.Inventory.Common.StockAllocation;
 using EvoManage.Application.Inventory.StockMovements.Commands;
 using EvoManage.Application.Inventory.StockMovements.Commands.Transfer;
 using EvoManage.Application.Inventory.StockMovements.Events;
+using EvoManage.Application.Inventory.StockMovements.Validation.Common;
+using EvoManage.Application.Inventory.StockMovements.Validation.Common.Validators;
+using EvoManage.Application.Inventory.StockMovements.Validation.Transfer;
+using EvoManage.Application.Inventory.StockMovements.Validation.Transfer.Handlers;
 using EvoManage.Domain.Inventory.StockMovements;
 using EvoManage.Domain.Locations;
 using EvoManage.Domain.Products;
@@ -22,16 +26,43 @@ public sealed class CreateStockTransferServiceTests
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly StockAllocationStrategyResolver _stockAllocationStrategyResolver = new([]);
     private readonly StockMovementCreatedEventDispatcher _eventDispatcher = new([]);
+    private readonly StockMovementValidationPipeline _stockMovementValidationPipeline = new([]);
+    private readonly StockTransferValidationPipeline _stockTransferValidationPipeline;
 
     private StockMovementCommandService CreateService()
         => new(
             _stockMovementRepository.Object,
-            _productRepository.Object,
-            _warehouseRepository.Object,
-            _locationRepository.Object,
             _unitOfWork.Object,
             _stockAllocationStrategyResolver,
-            _eventDispatcher);
+            _eventDispatcher,
+            _stockMovementValidationPipeline,
+            _stockTransferValidationPipeline);
+
+    public CreateStockTransferServiceTests()
+    {
+        _stockTransferValidationPipeline = new StockTransferValidationPipeline(
+        [
+            new TransferProductValidationHandler(
+                new ActiveProductValidator(_productRepository.Object)),
+
+            new SourceWarehouseValidationHandler(
+                new ActiveWarehouseValidator(_warehouseRepository.Object)),
+
+            new SourceLocationValidationHandler(
+                new WarehouseLocationValidator(_locationRepository.Object)),
+
+            new TargetWarehouseValidationHandler(
+                new ActiveWarehouseValidator(_warehouseRepository.Object)),
+
+            new TargetLocationValidationHandler(
+                new WarehouseLocationValidator(_locationRepository.Object)),
+
+            new DifferentSourceAndTargetValidationHandler(),
+
+            new SufficientStockValidationHandler(
+                _stockMovementRepository.Object)
+        ]);
+    }
 
     [Fact]
     public async Task CreateTransferAsync_WithMissingProduct_ShouldThrowNotFoundException()

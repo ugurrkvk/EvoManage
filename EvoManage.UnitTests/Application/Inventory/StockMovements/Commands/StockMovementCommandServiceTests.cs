@@ -7,6 +7,11 @@ using EvoManage.Application.Inventory.StockMovements.Commands.Issue;
 using EvoManage.Application.Inventory.StockMovements.Commands.Receipt;
 using EvoManage.Application.Inventory.StockMovements.Commands.Transfer;
 using EvoManage.Application.Inventory.StockMovements.Events;
+using EvoManage.Application.Inventory.StockMovements.Validation.Common;
+using EvoManage.Application.Inventory.StockMovements.Validation.Common.Handlers;
+using EvoManage.Application.Inventory.StockMovements.Validation.Common.Validators;
+using EvoManage.Application.Inventory.StockMovements.Validation.Transfer;
+using EvoManage.Application.Inventory.StockMovements.Validation.Transfer.Handlers;
 using EvoManage.Domain.Inventory.StockMovements;
 using EvoManage.Domain.Locations;
 using EvoManage.Domain.Products;
@@ -27,6 +32,8 @@ public sealed class StockMovementCommandServiceTests
 
     private readonly StockAllocationStrategyResolver _stockAllocationStrategyResolver;
     private readonly StockMovementCreatedEventDispatcher _eventDispatcher;
+    private readonly StockMovementValidationPipeline _stockMovementValidationPipeline;
+    private readonly StockTransferValidationPipeline _stockTransferValidationPipeline;
 
     public StockMovementCommandServiceTests()
     {
@@ -43,17 +50,49 @@ public sealed class StockMovementCommandServiceTests
         [
             _stockMovementCreatedEventHandler.Object
         ]);
+
+        _stockMovementValidationPipeline = new StockMovementValidationPipeline(
+        [
+            new ProductValidationHandler(
+                new ActiveProductValidator(_productRepository.Object)),
+            new WarehouseValidationHandler(
+                new ActiveWarehouseValidator(_warehouseRepository.Object)),
+            new LocationValidationHandler(
+                new WarehouseLocationValidator(_locationRepository.Object))
+        ]);
+
+        _stockTransferValidationPipeline = new StockTransferValidationPipeline(
+        [
+            new TransferProductValidationHandler(
+                new ActiveProductValidator(_productRepository.Object)),
+
+            new SourceWarehouseValidationHandler(
+                new ActiveWarehouseValidator(_warehouseRepository.Object)),
+
+            new SourceLocationValidationHandler(
+                new WarehouseLocationValidator(_locationRepository.Object)),
+
+            new TargetWarehouseValidationHandler(
+                new ActiveWarehouseValidator(_warehouseRepository.Object)),
+
+            new TargetLocationValidationHandler(
+                new WarehouseLocationValidator(_locationRepository.Object)),
+
+            new DifferentSourceAndTargetValidationHandler(),
+
+            new SufficientStockValidationHandler(
+                _stockMovementRepository.Object)
+        ]);
     }
 
     private StockMovementCommandService CreateService()
         => new(
             _stockMovementRepository.Object,
-            _productRepository.Object,
-            _warehouseRepository.Object,
-            _locationRepository.Object,
             _unitOfWork.Object,
             _stockAllocationStrategyResolver,
-            _eventDispatcher);
+            _eventDispatcher,
+            _stockMovementValidationPipeline,
+            _stockTransferValidationPipeline);
 
     [Fact]
     public async Task CreateReceiptAsync_WithValidRequest_ShouldAddReceiptAndSaveChanges()
@@ -190,7 +229,7 @@ public sealed class StockMovementCommandServiceTests
     public async Task CreateReceiptAsync_WithMissingLocation_ShouldThrowNotFoundException()
     {
         // Arrange
-        SetupValidProductAndWarehouse();
+        SetupValidProductWarehouseAndLocation();
 
         _locationRepository
             .Setup(repository => repository.GetByIdAsync(
@@ -381,7 +420,7 @@ public sealed class StockMovementCommandServiceTests
     public async Task CreateIssueAsync_WithValidAllocation_ShouldAddIssueAndSaveChanges()
     {
         // Arrange
-        SetupValidProductAndWarehouse();
+        SetupValidProductWarehouseAndLocation();
 
         _stockAllocationStrategy
             .Setup(strategy => strategy.AllocateAsync(
@@ -433,7 +472,7 @@ public sealed class StockMovementCommandServiceTests
     public async Task CreateIssueAsync_WithExactAllocation_ShouldAddIssueAndSaveChanges()
     {
         // Arrange
-        SetupValidProductAndWarehouse();
+        SetupValidProductWarehouseAndLocation();
 
         _stockAllocationStrategy
             .Setup(strategy => strategy.AllocateAsync(
@@ -483,7 +522,7 @@ public sealed class StockMovementCommandServiceTests
     public async Task CreateIssueAsync_WithStrategyConflict_ShouldNotSaveMovement()
     {
         // Arrange
-        SetupValidProductAndWarehouse();
+        SetupValidProductWarehouseAndLocation();
 
         _stockAllocationStrategy
             .Setup(strategy => strategy.AllocateAsync(
@@ -517,7 +556,7 @@ public sealed class StockMovementCommandServiceTests
     public async Task CreateIssueAsync_WithZeroStockStrategyConflict_ShouldNotSaveMovement()
     {
         // Arrange
-        SetupValidProductAndWarehouse();
+        SetupValidProductWarehouseAndLocation();
 
         _stockAllocationStrategy
             .Setup(strategy => strategy.AllocateAsync(
@@ -634,7 +673,7 @@ public sealed class StockMovementCommandServiceTests
     public async Task CreateIssueAsync_WithMultipleAllocations_ShouldAddIssueForEachAllocationAndSaveOnce()
     {
         // Arrange
-        SetupValidProductAndWarehouse();
+        SetupValidProductWarehouseAndLocation();
 
         _stockAllocationStrategy
             .Setup(strategy => strategy.AllocateAsync(
@@ -1121,7 +1160,7 @@ public sealed class StockMovementCommandServiceTests
             .ReturnsAsync(targetLocation);
     }
 
-    private void SetupValidProductAndWarehouse()
+    private void SetupValidProductWarehouseAndLocation()
     {
         var product = Product.Create(
             "PRD-001",
@@ -1131,6 +1170,10 @@ public sealed class StockMovementCommandServiceTests
         var warehouse = Warehouse.Create(
             "WH-001",
             "Main Warehouse");
+
+        var location = Location.Create(
+            warehouseId: 1,
+            code: "A-01-01");
 
         _productRepository
             .Setup(repository => repository.GetByIdAsync(
@@ -1143,6 +1186,12 @@ public sealed class StockMovementCommandServiceTests
                 1,
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(warehouse);
+
+        _locationRepository
+            .Setup(repository => repository.GetByIdAsync(
+                10,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(location);
     }
 
     private void SetupRepositories(
